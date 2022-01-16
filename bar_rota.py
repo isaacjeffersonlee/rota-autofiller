@@ -152,11 +152,29 @@ def main():
     while switch:
         gc.refresh_access_token() # Get new access token, using refresh token
         r = gc.check_for_new()
-        if r['value']: print(f"Change detected in {r['value'][-1]['name']}")
-        print(f"Check number: {counter}")
+        # try:
+        #     if r['value']: print(f"Change detected in {r['value'][-1]['name']}")
+        # except KeyError:
+        #     print('KeyError detected!')
         time_elapsed = str(dt.now() - start_time).split('.')[0]
-        print(f"Time elapsed: {time_elapsed}")
-        print("--------------------------------------------------------")
+        bar_length = 40
+        arrow_length = counter % int(bar_length / 2)
+        os.system('clear')
+        print("")
+        print("")
+        print(" -----------------------------------------------------------------------")
+        print("")
+        print("")
+        print("                      .* Scanning for new rotas *.                      ")
+        print("")
+        print(f"                           Check number: {counter}                      ")
+        print(f"                           Time elapsed: {time_elapsed}                 ")
+        print("")
+        print("")
+        print(( " " * 17) + "[" + ("=" * arrow_length) + ">>" + (" " * (bar_length - 2 * (arrow_length + 1))) + "<<" + ("=" * arrow_length) + "]" + (" " * 23)) 
+        print("")
+        print(" -----------------------------------------------------------------------")
+        print("")
 
 
         for change in r['value']:
@@ -192,7 +210,7 @@ def main():
                 pass
 
         counter += 1 # Increment counter
-        time.sleep(10) # Zzzzz
+        time.sleep(5) # Zzzzz
 
 
 if __name__ == '__main__':
