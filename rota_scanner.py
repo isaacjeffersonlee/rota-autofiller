@@ -4,11 +4,11 @@ from urllib.parse import urlparse, parse_qs
 import requests
 import json
 import msal
-import os
 import subprocess
 import webbrowser
 import time
 from datetime import datetime as dt
+import pyautogui as pa
 
 class GraphClient:
     AUTHORITY_URL = 'https://login.microsoftonline.com/'
@@ -119,7 +119,14 @@ class GraphClient:
         return r.json()
 
 
-def main():
+
+def scroll_to_top_left(scroll_length=30):
+    """Using the arrow keys, scroll to the top left of the screen."""
+    pa.press('left', presses=scroll_length)
+    pa.press('pageup')
+
+
+def scan_for_new_rota(root_drive='personal'):
     with open('credentials.json', 'r') as f: # Read in our credentials json
         credentials = json.load(f)
     scope=['User.Read', 'Files.ReadWrite.All', 'Files.Read.All',
@@ -133,13 +140,20 @@ def main():
     # My personal drive id
     personal_driveid = 'b!VVp9GUD9v06cyfM41FM4_CwrynnMOI5LpvhML0mbJnIpc8sEVKhASL9LnZIC63dh'
     # Instantiate a GraphClient object
+    if root_drive == 'personal':
+        root_driveid = personal_driveid
+    elif root_drive == 'rota':
+        root_drive = rota_driveid
+    else:
+        print(f"Error, {root_drive} is not a valid drive!")
+
     gc = GraphClient(
             client_id=client_id,
             client_secret=client_secret,
             redirect_uri=redirect_uri,
             scope=scope,
             account_type=account_type,
-            root_driveid=rota_driveid) # <<<<<<<<<<<<<<<<<<
+            root_driveid=root_driveid) # <<<<<<<<<<<<<<<<<<
 
     gc.get_access_token() # Web app client authentication
 
@@ -150,6 +164,7 @@ def main():
 
     switch = True
     while switch:
+        time.sleep(10) # Zzzzz
         gc.refresh_access_token() # Get new access token, using refresh token
         r = gc.check_for_new()
         # try:
@@ -159,21 +174,10 @@ def main():
         time_elapsed = str(dt.now() - start_time).split('.')[0]
         bar_length = 40
         arrow_length = counter % int(bar_length / 2)
-        os.system('clear')
+        print(f"   Scanning {root_drive} drive for new rotas...  ")
         print("")
-        print("")
-        print(" -----------------------------------------------------------------------")
-        print("")
-        print("")
-        print("                      .* Scanning for new rotas *.                      ")
-        print("")
-        print(f"                           Check number: {counter}                      ")
-        print(f"                           Time elapsed: {time_elapsed}                 ")
-        print("")
-        print("")
-        print(( " " * 17) + "[" + ("=" * arrow_length) + ">>" + (" " * (bar_length - 2 * (arrow_length + 1))) + "<<" + ("=" * arrow_length) + "]" + (" " * 23)) 
-        print("")
-        print(" -----------------------------------------------------------------------")
+        print(f"    Check number: {counter}")
+        print(f"    Time elapsed: {time_elapsed}")
         print("")
 
 
@@ -186,32 +190,27 @@ def main():
                     # We are only interested in files for 2022
                     if year == '22' and name not in old_rotas:
                         url = change['webUrl']
-                        try:
-                            os.system("wl-copy 'Isaac Lee'") # copy my name to clipboard, (wayland only)
-                            os.system('playerctl stop') # Pause any currently playing media
-                            # Play music
-                            process = subprocess.Popen(['ffplay', '-hide_banner', '-nostats', '-autoexit', '/home/isaac/Music/eminem_crab_god.mp3'])
-                        except:
-                            pass
-
                         print(f"New excel file detected: {name}")
                         print(f"Created: {change['createdDateTime']}")
                         print(f"Last modified: {change['lastModifiedDateTime']}")
                         print("Opening file in browser!")
                         webbrowser.open(url, new=0, autoraise=True) # open in browser
-                        print("Appending to old_rotas.txt...")
+                        time.sleep(3)
+                        scroll_to_top_left(scroll_length=30)
+                        print("Scrolling to top left")
 
-                        with open('old_rotas.txt', 'a') as f:
-                            f.write(name) # Append old rotas with new rota
-                    
-                        switch = False # Leave while loop
+                        switch = False # exit while loop
 
             except KeyError:
                 pass
 
         counter += 1 # Increment counter
-        time.sleep(5) # Zzzzz
+        print("-" * 56) # Aesthetics
+
+    print(f"Finished scanning, found {name}")
+
+    return name
 
 
 if __name__ == '__main__':
-    main()
+    scan_for_new_rota()
