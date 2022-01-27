@@ -3,7 +3,7 @@
 #### Date: 15/01/2022
 
 ### Demo
-![Demo Example](https://giphy.com/gifs/XGcnlPAhuz6TLNsxTN)
+![Demo Example](./demo/rota_bot_demo.GIF)
 
 ### Problem
 I work for my University's student bar and we have over 100
