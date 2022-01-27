@@ -2,6 +2,9 @@
 
 #### Date: 15/01/2022
 
+### Demo
+![Demo Example](https://giphy.com/gifs/XGcnlPAhuz6TLNsxTN)
+
 ### Problem
 I work for my University's student bar and we have over 100
 employees. Each Monday a new rota is released on Microsoft Sharepoint
