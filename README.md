@@ -42,5 +42,5 @@ shift_list = [
 ### Requirements
 
 ```
-pip install oauthlib msal urllib requests webbrowser 
+pip install numpy oauthlib msal urllib requests webbrowser 
 ```
