@@ -11,6 +11,31 @@ from datetime import datetime as dt
 import pyautogui as pa
 
 class GraphClient:
+    """
+    Microsoft Graph API client class.
+    
+    Attributes
+    ----------
+    client_id : str
+        API app client id.
+
+    client_secret : str
+        API app client secret.
+
+    redirect_uri : str
+        Redirect uri/url for authentication.
+
+    scope : list[str]
+        Permissions required.
+
+    account_type : str
+        E.g 'organizations' or 'personal'.
+
+    root_driveid : str
+        The unique microsoft graph driveItem id of the root
+        directory to search.
+    """
+    
     AUTHORITY_URL = 'https://login.microsoftonline.com/'
     BASE_URL = 'https://graph.microsoft.com/v1.0'
     AUTH_ENDPOINT = '/oauth2/v2.0/authorize?'
@@ -36,6 +61,7 @@ class GraphClient:
         self.access_token = None
         self.refresh_token = None
         self.delta_token = None
+        self.token_expires_in = None
         # Initialize the ConfidentialClientApplication object
         self.client_app = msal.ConfidentialClientApplication(
             client_id=self.client_id,
@@ -48,14 +74,9 @@ class GraphClient:
         auth_url = self.client_app.get_authorization_request_url(
             scopes=self.scope, state=self.STATE, redirect_uri=self.redirect_uri
             )
-        print("-" * 56) # Aesthetics
-        print("Paste this into your browser and copy the resulting url: ")
-        print("")
-        print(auth_url)
-        print("")
+        webbrowser.open(auth_url, new=0, autoraise=True)
         unparsed_url = input("Url: ")
         parsed_url = urlparse(unparsed_url)
-        print("-" * 56)
         return parse_qs(parsed_url.query)['code'][0]
 
     def get_access_token(self):
@@ -75,6 +96,7 @@ class GraphClient:
         )
         self.access_token = token_dict['access_token']
         self.refresh_token = token_dict['refresh_token']
+        self.token_expires_in = token_dict['expires_in'] # In seconds
 
     def get_rota(self, relative_file_path):
         """
@@ -118,99 +140,10 @@ class GraphClient:
         r = requests.get(url=request_url, headers=headers)
         return r.json()
 
+    def get_driveItems(self, path_relative_to_root):
+        """Get a list of the driveItems at the relative_path to the root drive."""
+        headers = { "Authorization": f"Bearer {self.access_token}" }
+        request_url = self.BASE_URL + f"/drives/{self.root_driveid}/root:/{path_relative_to_root}:/children"
+        r = requests.get(url=request_url, headers=headers)
+        return r.json()
 
-
-def scroll_to_top_left(scroll_length=30):
-    """Using the arrow keys, scroll to the top left of the screen."""
-    pa.press('left', presses=scroll_length)
-    pa.press('pageup')
-
-
-def scan_for_new_rota(root_drive='personal'):
-    with open('credentials.json', 'r') as f: # Read in our credentials json
-        credentials = json.load(f)
-    scope=['User.Read', 'Files.ReadWrite.All', 'Files.Read.All',
-            'Sites.Read.All', 'Sites.Manage.All', 'Sites.ReadWrite.All']
-    redirect_uri = credentials['redirect_uri']
-    client_secret = credentials['client_secret']
-    client_id = credentials['client_id']
-    account_type = credentials['account_type'] 
-    # Beit-Bars Rotas site drive id, found by using requests to the Beit-Bars site
-    rota_driveid = 'b!eeW687o3gEGiBnBABZArSmR-zAXXs-xPldmu_FiTD2UJoNtojn0aR7IRk7293MHO'
-    # My personal drive id
-    personal_driveid = 'b!VVp9GUD9v06cyfM41FM4_CwrynnMOI5LpvhML0mbJnIpc8sEVKhASL9LnZIC63dh'
-    # Instantiate a GraphClient object
-    if root_drive == 'personal':
-        root_driveid = personal_driveid
-    elif root_drive == 'rota':
-        root_drive = rota_driveid
-    else:
-        print(f"Error, {root_drive} is not a valid drive!")
-
-    gc = GraphClient(
-            client_id=client_id,
-            client_secret=client_secret,
-            redirect_uri=redirect_uri,
-            scope=scope,
-            account_type=account_type,
-            root_driveid=root_driveid) # <<<<<<<<<<<<<<<<<<
-
-    gc.get_access_token() # Web app client authentication
-
-    counter = 0
-    start_time = dt.now() # Start duration timer
-    with open('old_rotas.txt', 'r') as f: # Read in old rota names as a list
-        old_rotas = f.read().splitlines()
-
-    switch = True
-    while switch:
-        time.sleep(5) # Zzzzz
-        gc.refresh_access_token() # Get new access token, using refresh token
-        r = gc.check_for_new()
-        # try:
-        #     if r['value']: print(f"Change detected in {r['value'][-1]['name']}")
-        # except KeyError:
-        #     print('KeyError detected!')
-        time_elapsed = str(dt.now() - start_time).split('.')[0]
-        bar_length = 40
-        arrow_length = counter % int(bar_length / 2)
-        print(f"   Scanning {root_drive} drive for new rotas...  ")
-        print("")
-        print(f"    Check number: {counter}")
-        print(f"    Time elapsed: {time_elapsed}")
-        print("")
-
-
-        for change in r['value']:
-            try:
-                # Filter only excel files 
-                if change['file']['mimeType'] == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
-                    name = change['name']
-                    year = name.split(".")[0][-2:] # Final two characters
-                    # We are only interested in files for 2022
-                    if year == '22' and name not in old_rotas:
-                        url = change['webUrl']
-                        print(f"New excel file detected: {name}")
-                        print(f"Created: {change['createdDateTime']}")
-                        print(f"Last modified: {change['lastModifiedDateTime']}")
-                        print("Opening file in browser!")
-                        webbrowser.open(url, new=0, autoraise=True) # open in browser
-                        time.sleep(3)
-                        scroll_to_top_left(scroll_length=30)
-                        print("Scrolling to top left")
-
-                        switch = False # exit while loop
-
-            except KeyError:
-                pass
-
-        counter += 1 # Increment counter
-        print("-" * 56) # Aesthetics
-
-    print(f"Finished scanning, found {name}")
-
-    return name
-
-
-if __name__ == '__main__':
-    scan_for_new_rota()

@@ -5,31 +5,24 @@ import time
 import math
 import numpy as np
 
+
 class Autofill:
     """
+    Autofill object provides various methods to autofill a rota using
+    pyautogui.
+
     Attributes
     ----------
-    shift_list : list[list[str, list[str]]]
-        Nested list of names and shifts e.g 
-        [['Isaac Lee', ['wednesday evening', 'saturday evening', 'sunday morning']]
-         ['Nithil Kennedy', ['thursday afternoon']]]
-
     screen_region : tuple[int]
-        region of the screen to be autofilled.
+        Region of the screen to be autofilled.
         i.e (top, left, width, height)
         e.g (0, 0, 1080, 1920)
 
     colours : list[tuple[int]]
-        list of pixel colours to keep. I.e the cell colours
-        of the rota.
+        List of pixel colours to filter. I.e the cell colours of the rota.
         E.g colours = [(146,208,80), (248,203,173), (68,114,196), (0,0,0)]
-        
-    Methods
-    -------
-    # TODO: Add methods doc
     """
-    def __init__(self, shift_list, screen_region, colours):
-        self.shift_list = shift_list 
+    def __init__(self, screen_region, colours):
         self.screen_region = screen_region
         self.screen_img = pa.screenshot(region=screen_region)
         self.colours = colours
@@ -48,21 +41,21 @@ class Autofill:
 
         Parameters
         ----------
-        colour_one : 3d tuple
+        colour_one : tuple[int]
             (R, G, B) tuple of the first colour.
 
-        colour_two : 3d tuple
+        colour_two : tuple[int]
             (R, G, B) tuple of the second colour.
 
-        threshold : float
+        threshold : int
             The maximum distance that two colours can be 
             to be considered the same shade.
             A good value is around 35.
         
         Returns
         -------
-        name : type
-            Return value description
+        is_same_colour : bool
+            True if same colour and False if not.
         """
         colour_one = np.array(colour_one) 
         colour_two = np.array(colour_two) 
@@ -72,39 +65,46 @@ class Autofill:
             return False
 
 
-    def get_pixel_line(self, start, end, orientation):
+    def get_pixel_line(self, start, end, orientation, img=None):
         """
         Get all pixel colour and positions in a horizontal 
         or vertical line.
         
         Parameters
         ----------
-        start : tuple
+        start : tuple[int]
             Coords of the start of the line.
 
-        end : tuple
+        end : tuple[int]
             Coords of the end of the line.
 
         orientation : str 
             Orientation of the line.
             Either 'vertical' or 'horizontal'.
 
+        img : PIL.PngImagePlugin.PngImageFile
+            Image to get the pixels from.
+
         Returns
         -------
-        pix_line : list
-            List of lists of pixel colour and position.
+        pix_line : list[tuple[tuple[int], int]]
+            List of tuples of pixel colour and position.
             If the line is vertical, position is the y coords
             and if horizontal, the x coords.
         """
+        # If no img argument is given, we use the whole screen
+        # screenshot attribute
+        if not img: img = self.screen_img
+
         x0, y0 = start
         pix_line = []
         if orientation == 'vertical':
             for y in range(start[1], end[1]+1):
-                pix_col = self.screen_img.getpixel((x0, y))
+                pix_col = img.getpixel((x0, y))
                 pix_line.append((pix_col, y))
         elif orientation == 'horizontal':
             for x in range(start[0], end[0]+1):
-                pix_col = self.screen_img.getpixel((x, y0))
+                pix_col = img.getpixel((x, y0))
                 pix_line.append((pix_col, x))
         else:
             raise Exception(f"Orientation: {orientation} "\
@@ -113,26 +113,24 @@ class Autofill:
 
         return pix_line
 
-
     def filter_pixel_line(self, pix_line):
         """
-        Remove unwanted self.colours from the pixel line and separate
-        pixel_line into sub-lists, based on colour, i.e separating
-        into separate cells.
+        Remove unwanted colours from the pixel line and separate
+        into sub-lists, based on colour, i.e separating into separate cells.
         
         Parameters
         ----------
-        pix_line : list
-            list of tuples of pixel colour and coordinate.
+        pix_line : list[tuple[tuple[int], int]]
+            List of tuples of pixel colour and coordinate.
         
         Returns
         -------
-        filtered_cells : list
-            list of lists of pixel colour and coordinate based, grouped
+        filtered_cells : list[list[tuple[tuple[int], int]]]
+            List of tuples of pixel colour and coordinate, grouped
             by cell colour.
         """
         filtered_pix_line = []
-        # Filter out unwanted self.colours
+        # Filter out unwanted colours
         for pix in pix_line:
             pix_col, pix_coord = pix
             if pix_col == (0,0,0):
@@ -177,31 +175,42 @@ class Autofill:
     def get_cell_centres(self, filtered_cells):
         """
         Convert the list of lists of (pix colour, pix coord) into 
-        a list of (cell center pix colour, cell center coord).
+        a list of (cell center pix colour, cell center y coord).
         
         Parameters
         ----------
-        filtered_cells : list
-            List of lists of pixel colour and coordinate based, grouped
+        filtered_cells : list[list[tuple[tuple[int], int]]]
+            List of tuples of pixel colour and coordinate, grouped
             by cell colour.
 
         Returns
         -------
-        cell_centres : list
-            List of lists of (cell_centre_colour, cell_centre_coord) 
+        cell_centres : list[list[tuple[tuple[int], int]]]
+            List of lists of (cell_centre_colour, cell_centre_y_coord) 
         """
-        cell_centres = []
-        for cell in filtered_cells:
-            cell_centre = cell[int(len(cell) / 2)]
-            cell_centres.append(cell_centre)
-
-        return cell_centres
+        # Since the next cell has y coordinate += 1 of the previous
+        # cell, it follows that we can just use the number of elements
+        # in each cell list, i.e the number of pixels in that cell
+        # to get the height of the cell.
+        return [cell[int(len(cell) / 2)] for cell in filtered_cells]
 
 
     def split_into_shifts(self, cell_centres):
         """
-        Returns list of lists of midpoints, where each
-        sublist represents a shift.
+        Get a list of list of tuples, where each sub list corresponds to a 
+        a shift, and each tuple corresponds to each cell in the shift.
+        In each tuple we have (cell colour, cell centre y coord).
+
+        Parameters
+        ----------
+        cell_centres : list[list[tuple[tuple[int], int]]]
+            List of lists of (cell_centre_colour, cell_centre_coord) 
+
+        Returns
+        -------
+        cells_by_shift : list[list[tuple[tuple[int], int]]]
+            List of shifts. Each shift contains tuples representing each cell
+            in the shift.
         """
         border_idx = []
         for i in range(len(cell_centres)-1): 
@@ -219,53 +228,87 @@ class Autofill:
 
 
     def get_shifts(self):
-        """Returns a list of vertical cells, starting at (x0,y0)."""
+        """
+        Worker function to get vertical pixel line, 
+        filter it for the correct colours and call split_into_shifts 
+        to parse it into shifts.
+
+        Parameters
+        ----------
+        None
+        
+        Returns
+        -------
+        shifts : list[list[tuple[tuple[int], int]]]
+            List of shifts. Each shift contains tuples representing each cell
+            in the shift.
+        """
         screen_height = self.screen_region[3]
         vertical_pix_line = self.get_pixel_line(end=(self.x0, screen_height-1),
                 start=((self.x0, self.y0)),
                 orientation='vertical')
         filtered_vertical_cells = self.filter_pixel_line(vertical_pix_line)
         cell_centres = self.get_cell_centres(filtered_vertical_cells)
-        shifts = self.split_into_shifts(cell_centres)
+        cells_by_shift = self.split_into_shifts(cell_centres)
         
-        print(f"Shifts detected: {len(shifts)}, 21 expected.")
-        return shifts
+        print(f"Shifts detected: {len(cells_by_shift)}, 21 expected.")
+        return cells_by_shift
 
-
-    def zoom_out(self, zooms=4):
+    def zoom_out(self, zooms=2):
         """
         Zoom out using ctrl-scroll wheel emulation
-        with pyautogui.
+        with pyautogui. After zooming, pages up and 
+        scrolls left.
+
+        Parameters
+        ----------
+        zooms : int
+            Number of mouse scrolls to emulate, equivalent
+            to the number of zooms.
+
+        Returns
+        -------
+        None
         """
         pa.moveTo((500,500)) # Focus the mouse
-        # time.sleep(0.5)
         pa.keyDown('ctrl')
         for i in range(zooms):
             pa.scroll(-1)
-        # time.sleep(0.5)
         pa.keyUp('ctrl')
-        # time.sleep(0.5)
         pa.press('pageup')
-        # time.sleep(0.5)
         pa.hscroll(-50)
-        # time.sleep(0.5)
 
 
     def calibrate_start_and_get_shifts(self):
         """
-        Move down the screen until correct colours are found.
-        Populate the x0, y0 and cell width attributes.
+        Screenshots screen then moves down until correct colours
+        are found, then checks if the correct number of shifts
+        are found. If not, zooms out and recursively calls itself
+        until 21 shifts are found.
+        Populates the x0, y0 and cell_width and cell_height attributes.
+        
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
         """
         screen_height = self.screen_region[3]
         screen_width = self.screen_region[2]
         screen_top = self.screen_region[1]
         screen_left = self.screen_region[0]
         filtered_horizontal_cells = []
+        pa.click((1000,800)) # Move mouse focus
+        print("Taking screenshot...")
+        time.sleep(1)
+        self.screen_img = pa.screenshot(region=self.screen_region) # Retake screenshot
         # Move down the screen until we detect the correct self.colours
         # Should always find in the top half, so we only go to third height
         for y in range(screen_top+200, int(screen_height/3), 10): # - constants to get negate title bars
             horizontal_pix_line = self.get_pixel_line(end=(screen_width-1, y),
-                    start=((screen_left, y)),
+                    start=((screen_left+1, y)),
                     orientation='horizontal')
             filtered_horizontal_cells = self.filter_pixel_line(horizontal_pix_line)
             if filtered_horizontal_cells:
@@ -290,8 +333,6 @@ class Autofill:
             time.sleep(0.5)
             pa.press('pageup')
             time.sleep(0.5)
-            print("Retaking screenshot...")
-            self.screen_img = pa.screenshot(region=self.screen_region) # Retake screenshot
             # Recursively call again
             print("Recursively calling calibrate_start_and_get_shifts again...")
             self.calibrate_start_and_get_shifts()
@@ -302,44 +343,86 @@ class Autofill:
             print("Updating shifts...")
             self.shifts = shifts
             # Difference between cell centre y coords for first two cells in first shift
-            self.cell_height =  shifts[0][1][1] - shifts[0][0][1]
+            self.cell_height = shifts[-1][1][1] - shifts[-1][0][1]
             print("Updating cell height:", self.cell_height)
 
         else:
             print("Zooming out...")
             self.zoom_out()
             # Recursively call again
-            print("Retaking screenshot...")
-            self.screen_img = pa.screenshot(region=self.screen_region) # Retake screenshot
             self.calibrate_start_and_get_shifts()
 
 
     def move_and_write(self, coords, text):
-        """Double click coords and write text."""
+        """
+        Wrapper function which combines pyautogui doubleClick
+        and write into a singe function.
+        Move to coords and write text.
+        
+        Parameters
+        ----------
+        coords : tuple[int]
+            (x,y) coordinates to move to.
+        
+        Returns
+        -------
+        None
+        """
         pa.doubleClick((coords[0], coords[1]))
         pa.write(text)
         pa.hotkey('esc')
 
     def check_occupied(self, cell_centre):
-        """Check if a cell already has text."""
+        """
+        Check if a cell is already occupied.
+        
+        Parameters
+        ----------
+        cell_centre : tuple[int]
+            Centre (x,y) coordinate of the cell to check.
+        
+        Returns
+        -------
+        is_occupied : bool
+            True if cell is already occupied, False if not.
+        """
+        # Get the cell region.
         cell_left = cell_centre[0] - int(self.cell_width/2)
         cell_top = cell_centre[1] - int(self.cell_height/2)
         cell_region = (cell_left, cell_top, self.cell_width, self.cell_height)
-        self.screen_img = pa.screenshot(region=cell_region)
-        for y in range(self.cell_height):
+        # Screenshot only the cell_region.
+        # A lot faster than screenshotting the whole screen.
+        cell_img = pa.screenshot(region=cell_region)
+        for y in range(1, self.cell_height-1):
             left = (1, y)
             right = (self.cell_width-1, y)
-            pix_line = self.get_pixel_line(start=left, end=right, orientation='horizontal')
+            pix_line = self.get_pixel_line(start=left, end=right, img=cell_img, orientation='horizontal')
             for i in range(len(pix_line)-1):
+                # If we detect different colours, i.e someones name
+                # In an empty cell we expect all the same colour
                 if pix_line[i][0] != pix_line[i+1][0]:
                     return True
 
         return False
 
-    def autofill_shifts(self):
+    def autofill_shifts(self, rota_url, shift_list):
         """
         Worker function that combines the other methods
         to autofill shift_list.
+
+        Parameters
+        ----------
+        rota_url : str
+            The url of the excel file to open in the browser.
+
+        shift_list : list[list[str, list[str]]]
+            Nested list of names and shifts e.g 
+            [['Isaac Lee', ['wednesday evening', 'saturday evening', 'sunday morning']]
+             ['Nithil Kennedy', ['thursday afternoon']]]
+
+        Returns
+        -------
+        None
         """
         shift_to_int_map = {
             'monday morning': 0, 'monday afternoon': 1, 'monday evening': 2,
@@ -350,23 +433,29 @@ class Autofill:
             'saturday morning': 15, 'saturday afternoon': 16, 'saturday evening': 17,
             'sunday morning': 18, 'sunday afternoon': 19, 'sunday evening': 20,
                             }
+        print("Opening rota...")
+        webbrowser.open(url=rota_url, new=0, autoraise=True)
+        # print("Sleeping 1 sec...")
+        time.sleep(3)
+        # print("Finished sleeping!")
+        print("Calibrating...")
         self.calibrate_start_and_get_shifts()
         displacement = 0
         failed_shifts = []
-        for person in self.shift_list:
+        for person in shift_list:
             name = person[0]
             shift_sublist = person[1]
             for shift in shift_sublist:
-                print("")
-                print(name)
-                print(shift)
-                print("-" * 40)
+                # print("")
+                # print(name)
+                # print(shift)
+                # print("-" * 40)
                 shift_num = shift_to_int_map[shift]
                 shift_cells = self.shifts[shift_num]
-                print(f"No. cells in shift: {len(shift_cells)}")
+                # print(f"Number of cells in shift: {len(shift_cells)}")
 
                 for i in range(len(shift_cells)):
-                    print(f"Trying cell: {i}")
+                    # print(f"Trying cell: {i}")
                     cell = shift_cells[i] # ith person gets the ith cell
                     y = cell[1]
                     if not self.check_occupied((self.x0, y)):
@@ -374,15 +463,15 @@ class Autofill:
                         self.move_and_write(coords=(self.x0, y), text=name)
                         break # move onto next shift
                     else: # Occupied
-                        print(f"Cell {i} for {shift} already occupied!")
+                        # print(f"Cell {i} for {shift} already occupied!")
                         if i == len(shift_cells)-1: # Last cell occupied
                             print(f"All cells for {shift} occupied!")
-                            print("Failed to autofill shift")
+                            print("Failed to autofill shift.")
                             failed_shifts.append([name, shift])
 
             displacement += 1
 
-        print("Finished autofilling...")
+        print("Finished autofilling.")
         print(f"No. shifts failed: {len(failed_shifts)}")
         print("Failed shifts:")
         for failed_shift in failed_shifts: print(failed_shift)
@@ -395,8 +484,7 @@ if __name__ == '__main__':
                   ['Nithil Kennedy', ['thursday evening']],
                   ['Rebekah Lindo', ['sunday afternoon']]]
     colours = [(146,208,80), (248,203,173), (68,114,196), (0,0,0)]
-    af = Autofill(shift_list=shift_list, screen_region=screen_region, colours=colours)
-    af.autofill_shifts()
+    af = Autofill(screen_region=screen_region, colours=colours)
     # af.check_occupied((349,1267))
 
 
