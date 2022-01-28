@@ -128,4 +128,11 @@ if __name__ == "__main__":
             ['Osaruese Egharevba', ['monday morning', 'tuesday evening', 'thursday morning', 'thursday evening', 'saturday morning']],
             ['Nithil Kennedy', ['thursday evening']]
             ]
+    # Demo Shift List
+    # shift_list = [
+    #         ['Phil Collins', ['sunday morning', 'saturday morning']],
+    #         ['Henry Rollins', ['saturday evening', 'sunday morning', 'sunday evening']],
+    #         ['Tracy Chapman', ['sunday afternoon']],
+    #         ['Dunununun Batman!', ['sunday afternoon']]
+    #         ]
     main(shift_list=shift_list, drive='rota', relative_path='February 2022', play_music=True, afk_mode=True)
