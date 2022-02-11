@@ -61,12 +61,36 @@ def main(shift_list, drive='personal', relative_path='February 2022',
     while not finished:
         try:
             counter += 1
+
+            mouse_position_before_sleep = pa.position()
             time.sleep(sleep_time)
-            if afk_mode:
-                pa.moveTo(((10*counter % 500)+100, (10*counter % 500)+100))
-            if counter % 100:
+            mouse_position_after_sleep = pa.position()
+
+            if counter % 300 == 0:
+                print("")
+                print("Refreshing access token...")
+                print("")
                 gc.refresh_access_token()  # We don't need to refresh every single loop
+                # Detect whether the user is afk
+                # If the x-coord of the mouse doesn't change after sleeping
+                # then only move the y-coordinate of the mouse
+                print("Checking for AFK...")
+                print("")
+                if mouse_position_before_sleep[0] == mouse_position_after_sleep[0]:
+                    afk_mode = True
+                    print("AFK mode activated!")
+                    print("")
+
+            if mouse_position_before_sleep[0] != mouse_position_after_sleep[0]:
+                afk_mode = False  # Deactivate AFK mode
+
+            if afk_mode:
+                # Move the cursor vertically down the screen
+                pa.moveTo((500, (30*counter % 700)+100))
+
+
             drive_items = gc.get_driveItems(relative_path)['value']
+
             time_elapsed = str(dt.now() - start_time).split('.')[0]
             print("--------------------------")
             print(f"Scanning {drive} drive...")
@@ -141,10 +165,10 @@ def main(shift_list, drive='personal', relative_path='February 2022',
 
 if __name__ == "__main__":
     shift_list = [
-        ['Isaac Lee', ['sunday morning', 'saturday morning', 'friday morning']],
+        ['Isaac Lee', ['sunday morning', 'saturday morning', 'thursday evening']],
         ['Osaruese Egharevba', ['sunday morning', 'saturday morning', 'thursday evening', 'wednesday afternoon', 'tuesday evening']],
         ['Nithil Kennedy', ['thursday evening', 'wednesday evening']],
         ['Ayse Zeynep Kamis', ['sunday evening', 'thursday evening']]
     ]
-    main(shift_list=shift_list, drive='rota', relative_path='February 2022',
+    main(shift_list=shift_list, drive='rota', relative_path='March 2022',
          play_music=True, afk_mode=False, sleep_time=2)
