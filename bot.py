@@ -89,49 +89,62 @@ def main(shift_list, drive='personal', relative_path='February 2022',
                 pa.moveTo((500, (30*counter % 700)+100))
 
 
-            drive_items = gc.get_driveItems(relative_path)['value']
-
+            drive_items_response = gc.get_driveItems(relative_path)
             time_elapsed = str(dt.now() - start_time).split('.')[0]
-            print("--------------------------")
-            print(f"Scanning {drive} drive...")
-            print(f"Check: {counter}")
-            print(f"Refresh time: {sleep_time} secs")
-            print(f"AFK: {afk_mode}")
-            print(f"Time elapsed: {time_elapsed}")
-            print(f"Errors: {error_log}")
-            print(f"Rotas autofilled: {num_rotas_autofilled}")
-            rotas = [(item['name'], item['webUrl']) for item in drive_items]
-            print(f"DriveItems detected: {len(rotas)}")
-            for rota in rotas:
-                print(rota[0])
-                rota_name, rota_url = rota
-                # Check file is not an old rota and also is an excel spreadsheet
-                if rota_name not in old_rotas and rota_name.split('.')[-1] == 'xlsx':
-                    print(f"New rota detected: {rota_name}")
-                    if play_music:  # Only trigger once
-                        try:
-                            # Pause any currently playing media
-                            os.system('playerctl stop')
-                            print("Music paused!")
-                        except:
-                            print("Error pausing media!")
-                        try:
-                            song = vlc.MediaPlayer('music.mp3')
-                            song.play()
-                        except:
-                            print("Error playing music!")
-                        play_music = False
+            try:
+                drive_items = drive_items_response['value']
+                print("--------------------------")
+                print(f"Scanning {drive} drive...")
+                print(f"Check: {counter}")
+                print(f"Refresh time: {sleep_time} secs")
+                print(f"AFK: {afk_mode}")
+                print(f"Time elapsed: {time_elapsed}")
+                print(f"Errors: {error_log}")
+                print(f"Rotas autofilled: {num_rotas_autofilled}")
+                rotas = [(item['name'], item['webUrl']) for item in drive_items]
+                print(f"DriveItems detected: {len(rotas)}")
+                for rota in rotas:
+                    print(rota[0])
+                    rota_name, rota_url = rota
+                    # Check file is not an old rota and also is an excel spreadsheet
+                    if rota_name not in old_rotas and rota_name.split('.')[-1] == 'xlsx':
+                        print(f"New rota detected: {rota_name}")
+                        if play_music:  # Only trigger once
+                            try:
+                                # Pause any currently playing media
+                                os.system('playerctl stop')
+                                print("Music paused!")
+                            except:
+                                print("Error pausing media!")
+                            try:
+                                song = vlc.MediaPlayer('music.mp3')
+                                song.play()
+                            except:
+                                print("Error playing music!")
+                            play_music = False
 
-                    print("Engaging autofiller!")
-                    af.autofill_shifts(
-                        shift_list=shift_list, rota_url=rota_url)
-                    with open('old_rotas.txt', 'a') as f:
-                        # Append old rotas with new rota
-                        f.write(rota_name + '\n')
-                    print(f"Appending {rota_name} to old_rotas.txt...")
-                    old_rotas.append(rota_name)
-                    # finished = True
-                    num_rotas_autofilled += 1
+                        print("Engaging autofiller!")
+                        af.autofill_shifts(
+                            shift_list=shift_list, rota_url=rota_url)
+                        with open('old_rotas.txt', 'a') as f:
+                            # Append old rotas with new rota
+                            f.write(rota_name + '\n')
+                        print(f"Appending {rota_name} to old_rotas.txt...")
+                        old_rotas.append(rota_name)
+                        # finished = True
+                        num_rotas_autofilled += 1
+
+            except KeyError:
+                print("--------------------------")
+                print(f"Scanning {drive} drive...")
+                print(f"Check: {counter}")
+                print(f"Refresh time: {sleep_time} secs")
+                print(f"AFK: {afk_mode}")
+                print(f"Time elapsed: {time_elapsed}")
+                print(f"Errors: {error_log}")
+                print(f"Rotas autofilled: {num_rotas_autofilled}")
+                print(f"{relative_path} {drive_items_response['error']['code']}")
+                print(drive_items_response['error']['message'])
 
         except KeyboardInterrupt:  # Toggle Away From Keyboard mode using ctrl-c
             print("Keyboard interrupt detected!")
@@ -165,10 +178,13 @@ def main(shift_list, drive='personal', relative_path='February 2022',
 
 if __name__ == "__main__":
     shift_list = [
-        ['Isaac Lee', ['sunday morning', 'saturday morning', 'thursday evening']],
-        ['Osaruese Egharevba', ['sunday morning', 'saturday morning', 'thursday evening', 'wednesday afternoon', 'tuesday evening']],
-        ['Nithil Kennedy', ['thursday evening', 'wednesday evening']],
-        ['Ayse Zeynep Kamis', ['sunday evening', 'thursday evening']]
+        ['Isaac Lee', ['sunday morning', 'saturday morning']],
+        ['Osaruese Egharevba', ['sunday morning', 'saturday morning', 'thursday afternoon', 'tuesday afternoon']],
+        ['Ayse Zeynep Kamis', ['sunday evening', 'thursday evening']],
+        ['Nithil Kennedy', ['thursday evening']],
+        ['Dominic Haworth-Staines', ['thursday evening']],
+        ['Lucile Villeret', ['wednesday afternoon', 'saturday afternoon']],
+        ['Michael Pristin', ['thursday evening']]
     ]
     main(shift_list=shift_list, drive='rota', relative_path='March 2022',
          play_music=True, afk_mode=False, sleep_time=2)
